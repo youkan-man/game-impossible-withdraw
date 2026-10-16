@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#263b3f">
+  <meta name="description" content="店をたたむために、店を大きくする。古物売買とBot自動化で、終わらない退会手続きに挑むインクリメンタルゲーム。">
+  <title>退会できません。 / IMPOSSIBLE WITHDRAW</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23d8eea0'/%3E%3Cpath d='M18 23h28v25H18zM18 23l14-9 14 9M32 14v9' fill='none' stroke='%23223930' stroke-width='4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="desktop" id="desktop">
+    <div class="wallpaper-type" aria-hidden="true">STILL<br>HERE.<small>退会できません。</small></div>
+    <aside class="desktop-icons" aria-label="デスクトップ">
+      <button data-action="restore" title="ブラウザを開く"><span class="desktop-symbol browser-symbol">c.</span>ブラウザ</button>
+      <button data-view="bots" title="Botラボを開く"><span class="desktop-symbol">⌘</span>Botラボ</button>
+      <button data-action="journal" title="手続きログ"><span class="desktop-symbol">▤</span>調査ノート</button>
+      <button data-action="settings" title="ゲーム設定"><span class="desktop-symbol">⚙</span>設定</button>
+    </aside>
+    <section class="browser" id="browser" aria-label="架空のPCブラウザ">
+      <div class="window-titlebar" id="drag-handle">
+        <div class="window-app"><span class="browser-dot"></span>Chappy Browser <span class="window-sub">/ Personal</span></div>
+        <div class="window-actions"><button data-action="minimize" aria-label="ウィンドウを最小化">−</button><button data-action="maximize" aria-label="ウィンドウを最大化">□</button><button data-action="close-window" aria-label="ウィンドウを閉じる">×</button></div>
+      </div>
+      <div class="browser-tabs" role="tablist" aria-label="ブラウザのタブ">
+        <button class="browser-tab active" data-view="market" role="tab" aria-selected="true"><span class="tab-favicon">c.</span><span>Chappy Market</span><span class="tab-mark">·</span></button>
+        <button class="browser-tab" data-view="store" role="tab" aria-selected="false"><span>▣</span><span>自分の店</span><span class="tab-badge" data-count="inventory">0</span></button>
+        <button class="browser-tab" data-view="bots" role="tab" aria-selected="false"><span>⌘</span><span>Botラボ</span></button>
+        <button class="browser-tab" data-view="withdraw" role="tab" aria-selected="false"><span class="tab-warn">↗</span><span>退会手続き</span><span class="tab-live" id="attempt-light" hidden></span></button>
+        <span class="tabs-space"></span><button class="chrome-button" data-action="journal" title="発見したページ" aria-label="発見したページ一覧">⌄</button>
+      </div>
+      <div class="addressbar"><button class="chrome-button" data-action="back" aria-label="ゲーム内ブラウザで戻る">←</button><button class="chrome-button" data-action="forward" aria-label="ゲーム内ブラウザで進む">→</button><button class="chrome-button" data-action="refresh" aria-label="画面を再表示">⟳</button><div class="address"><span class="address-lock">♧</span><span>chappy.market.invalid</span><span class="address-path" id="address-path">/market</span><span class="local-chip">GAME</span></div><button class="chrome-button" data-action="settings" aria-label="ゲーム設定">⋮</button></div>
+      <header class="site-header">
+        <button class="brand" data-view="market" aria-label="Chappy Market ホーム"><span class="brand-icon"><i></i></span><span>chappy<span class="brand-period">.</span><small>MARKET</small></span></button>
+        <div class="site-links"><button data-view="market">見つける</button><button data-view="store">自分の店</button><button data-action="profile">マイページ</button></div>
+        <div class="wallet" title="チャッピーコインの所持金"><span class="coin-icon">C</span><strong data-count="coins">1,200</strong><span>CC</span></div>
+        <button class="profile-avatar" data-action="profile" aria-label="マイページ">余</button>
+      </header>
+      <div class="save-warning" id="save-warning" role="status" hidden></div>
+      <div class="game-layout">
+        <div class="content-scroll" id="content-scroll"><main id="page" tabindex="-1"></main><footer class="site-footer"><span>chappy. © 架空のマーケット</span><button data-action="about">このゲームについて</button><span>出会いは、ずっと。</span></footer></div>
+        <aside class="right-rail" id="right-rail" aria-label="お店とゲームの状況"></aside>
+      </div>
+      <div class="browser-status"><span><i class="status-dot"></i><span id="save-status">ローカル保存</span></span><span id="running-status">店は営業しています</span><span>会員ステータス：<b>退会していません</b></span></div>
+    </section>
+    <div class="restore-hint" id="restore-hint" hidden><h2>まだ、ここにいる。</h2><p>ブラウザを閉じても、お店は営業中です。</p><button class="button accent" data-action="restore">ブラウザを開く ↗</button></div>
+    <footer class="taskbar"><button class="os-start" data-action="restore" aria-label="ブラウザを開く"><span></span><span></span><span></span><span></span></button><span class="taskbar-divider"></span><button class="taskbar-app active" data-action="restore"><span class="taskbar-logo">c.</span>Chappy Browser</button><button class="taskbar-tool" data-action="journal" aria-label="調査ノート">▤</button><span class="taskbar-title">IMPOSSIBLE WITHDRAW <i>—</i> incremental browser game</span><button class="taskbar-tool" data-action="settings" aria-label="設定">⚙</button><time id="os-clock"></time></footer>
+    <div class="modal-backdrop" id="modal-backdrop" hidden><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div id="modal-content"></div></section></div>
+    <div class="context-menu" id="context-menu" role="menu" hidden></div>
+    <div class="toast-stack" id="toasts" aria-live="polite"></div>
+    <input id="import-file" type="file" accept="application/json,.json" hidden>
+  </div>
+  <noscript>このゲームを遊ぶにはJavaScriptを有効にしてください。外部サービスへの接続は必要ありません。</noscript>
+  <script src="game.js"></script>
+  <script src="save.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
