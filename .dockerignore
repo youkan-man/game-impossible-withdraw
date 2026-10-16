@@ -1,0 +1,9 @@
+.git
+.github
+dist
+node_modules
+test-artifacts
+tests
+tools
+docs
+*.md
