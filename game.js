@@ -1,9 +1,10 @@
 /* Pure, deterministic simulation. No DOM, network, timers or storage access. */
 (function (root, factory) {
-  const api = factory();
+  const labyrinth = typeof module === 'object' && module.exports ? require('./labyrinth.js') : root.WithdrawLabyrinth;
+  const api = factory(labyrinth);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.WithdrawGame = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (L) {
   'use strict';
   const VERSION = 1;
   const LIMIT = 1e12;
@@ -27,16 +28,18 @@
     buyer: {name:'仕入れBot', code:'BUY-02', cost:620, color:'#e8e2f0', desc:'利益率のよい商品を自動で仕入れる。指定した運転資金は残す。'},
     seller: {name:'接客Bot', code:'SELL-03', cost:900, color:'#f0e3cf', desc:'全出品の販売速度をレベルごとに22%加速する。'},
     clock: {name:'延長Bot', code:'TIME-04', cost:1100, color:'#dde8f2', desc:'退会ページの制限時間をレベルごとに3秒延長する。'},
-    solver: {name:'手続きBot', code:'FORM-05', cost:1600, color:'#e8e9cd', desc:'ページ移動・ロック解除・チェック解除を自動化。Lv2で画像認証、Lv3で規約、Lv4で送信。'},
-    shield: {name:'監査Bot', code:'AUDIT-06', cost:2300, color:'#efdcd7', desc:'没収されるデポジットを一部保護。Lv1で逃げるボタン、Lv2で再チェック、Lv3で広告を無効化。'}
+    solver: {name:'手続きBot', code:'FORM-05', cost:1600, color:'#e8e9cd', desc:'ページ移動・ロック解除・チェック解除を自動化。Lv2〜4で入口、Lv5〜10で深層ロック、Lv11で最終明細、Lv12で本送信。'},
+    shield: {name:'監査Bot', code:'AUDIT-06', cost:2300, color:'#efdcd7', desc:'没収されるデポジットを一部保護。Lv1〜3で入口の罠、Lv4〜9で封印・認証・差し戻し・規約・受付窓・偽完了に対抗。'}
   };
   const RESEARCH = {
+    ...L.RESEARCH,
     bookmark: {name:'手続きのブックマーク', cost:3, max:1, desc:'発見済みの退会導線をスキップできる。'},
     latch: {name:'チェック固定パッチ', cost:5, max:1, desc:'勝手に入れ直されるチェックを永久に無効化。'},
     discount: {name:'デポジット交渉術', cost:4, max:3, desc:'預託額を1レベルにつき10%引き下げる。'},
     polish: {name:'古物の目利き', cost:4, max:5, desc:'商品の販売価格を1レベルにつき8%上乗せする。'}
   };
   const TRAPS = {
+    ...L.TRAPS,
     timer:'2秒で強制ログアウト', lock:'外せないチェックボックス', recheck:'チェックの自動復活', fly:'「はい（蝿）」の偽ボタン', advert:'閉じるほど増える広告', escape:'カーソルから逃げるボタン', captcha:'抹茶だけを選ぶ画像認証', terms:'最後まで読ませる規約', revision:'終わらない規約改訂'
   };
   const product = id => CATALOG.find(x => x.id === id);
@@ -66,7 +69,7 @@
       settings:{reserve:500, strategy:'normal', sound:false, reducedMotion:false},
       profile:{shop:'余白古物店', newsletter:true, flavor:'mix', reason:'退会したい', comment:''},
       path:0, discovered:0, navClock:0, attempt:null, lastResult:null, findings:[], ledger:[], work:0,
-      stats:{bought:0,sold:0,revenue:0,profit:0,attempts:0,lost:0,refunded:0,breakthroughs:0,work:0},
+      stats:{bought:0,sold:0,revenue:0,profit:0,attempts:0,lost:0,refunded:0,breakthroughs:0,work:0,deepest:0,gates:0,rollbacks:0},
       milestones:[], welcome:true};
     refreshMarket(s); record(s, '開店資金を受け取りました', 1200, 'income'); return s;
   }
@@ -129,6 +132,7 @@
     s.attempt={id:s.nextId++,deposit:cost,remaining:2+3*level(s,'clock'),duration:2+3*level(s,'clock'),age:0,
       checks:[true,true,true], unlocked:false, targets:order.slice(0,3), selected:[], captcha:false, terms:false,
       popup:false, adSeen:false, evades:level(s,'shield')?0:2+Math.min(3,s.cycle), position:0, recheckAt:3, botClock:0, progress:0};
+    s.attempt.labyrinth=L.create(s,labServices);
     s.path=14; s.discovered=14; s.lastResult=null;
     discover(s,'timer'); discover(s,'lock'); return {ok:true,message:'デポジットを預託しました。退会手続きを開始します。'};
   }
@@ -141,57 +145,59 @@
     const refund=Math.round(a.deposit*rate), loss=a.deposit-refund;
     if(refund) credit(s,refund,'退会デポジットの返還','refund');
     s.stats.refunded+=refund; s.stats.lost+=loss;
-    const data=1+Math.floor(a.progress/2)+(breakthrough?3:0); s.data+=data;
+    const data=1+Math.floor(Math.min(12,a.progress)/2)+(breakthrough?3:0); s.data+=data;
     if(breakthrough){s.cycle++;s.stats.breakthroughs++;discover(s,'revision');}
-    const result={id:a.id,reason,deposit:a.deposit,refund,loss,data,breakthrough,cycle:s.cycle};
+    const result={id:a.id,reason,deposit:a.deposit,refund,loss,data,breakthrough,cycle:s.cycle,stage:a.labyrinth?.stage||0,highest:a.labyrinth?.highest||0,faults:a.labyrinth?.faults||0};
     s.lastResult=result; s.path=1;
     record(s,(breakthrough?'規約が改訂されました':'退会失敗：'+reason)+' / '+loss+' CC 没収',0,'attempt');
     return result;
   }
   function unlock(s) {
-    if(!s.attempt) return {ok:false,message:'退会ページに入場していません。'};
+    if(!frontActive(s)) return {ok:false,message:'入口フォームを操作できません。'};
     if(!s.attempt.unlocked){s.attempt.unlocked=true;s.attempt.progress++;}
     return {ok:true,message:'ロック解除。チェックを外してください。'};
   }
   function setCheck(s,index,checked) {
     const a=s.attempt;
-    if(!a||!a.unlocked||!Number.isInteger(index)||index<0||index>2) return {ok:false,message:'チェックボックスはロックされています。'};
-    if(a.checks[index]&&!checked) a.progress++;
+    if(!frontActive(s)||!a.unlocked||!Number.isInteger(index)||index<0||index>2) return {ok:false,message:'チェックボックスはロックされています。'};
+    if(a.checks[index]&&!checked) a.progress=Math.min(7,a.progress+1);
     a.checks[index]=Boolean(checked); return {ok:true};
   }
   function captcha(s,index) {
-    const a=s.attempt; if(!a) return {ok:false}; discover(s,'captcha');
+    const a=s.attempt; if(!frontActive(s)) return {ok:false}; discover(s,'captcha');
     if(a.captcha) return {ok:true};
     if(!a.targets.includes(index)){a.selected=[];a.remaining=Math.max(0,a.remaining-.7);return {ok:false,message:'それは、わさびです。残り時間 -0.7秒。'};}
     if(!a.selected.includes(index)) a.selected.push(index);
     if(a.selected.length===3){a.captcha=true;a.progress++;}
     return {ok:true,message:a.captcha?'画像認証が完了しました。':'抹茶を選択しました。'};
   }
-  function acceptTerms(s) { const a=s.attempt;if(!a)return;discover(s,'terms');if(!a.terms){a.terms=true;a.progress++;} }
+  function acceptTerms(s) { const a=s.attempt;if(!frontActive(s))return;discover(s,'terms');if(!a.terms){a.terms=true;a.progress++;} }
   function evade(s) {
-    const a=s.attempt; if(!a||a.evades<=0) return false;
+    const a=s.attempt; if(!frontActive(s)||a.evades<=0) return false;
     if(level(s,'shield')) {a.evades=0;return false;}
     discover(s,'escape');a.evades--;a.position=(a.position+1)%3;return true;
   }
   function dismissAd(s,real) {
-    const a=s.attempt;if(!a)return;
+    const a=s.attempt;if(!frontActive(s))return;
     discover(s,'advert');if(real)a.popup=false;else{a.remaining=Math.max(0,a.remaining-.6);a.popup=true;}
   }
   function submit(s) {
     const a=s.attempt;if(!a)return {ok:false,message:'退会ページに入場してください。'};
     if(a.remaining<=0){settle(s,'時間切れ');return {ok:false,message:'時間切れです。'};}
+    if(a.labyrinth.stage!==0)return {ok:false,message:'入口は通過済みです。現在の層のロックを解除してください。'};
     if(a.popup) return {ok:false,message:'広告を本当に閉じてください。'};
     if(!a.unlocked||a.checks.some(Boolean)) return {ok:false,message:'3つのチェックを外してください。'};
     if(!a.captcha){discover(s,'captcha');return {ok:false,message:'抹茶の画像認証が残っています。'};}
     if(!a.terms){discover(s,'terms');return {ok:false,message:'規約を最後まで読んでください。'};}
     if(evade(s))return {ok:false,message:'ボタンが逃げました。もう一度。'};
-    settle(s,'退会申請の予約を受け付けました',true);return {ok:true,breakthrough:true,message:'受付完了……退会ではありません。'};
+    return L.clear(s,labServices);
   }
-  function fly(s) { if(!s.attempt)return;discover(s,'fly');settle(s,'「はい（蝿）」で蝿プランに加入'); }
+  function fly(s) { if(!frontActive(s))return;discover(s,'fly');settle(s,'「はい（蝿）」で蝿プランに加入'); }
   function autoForm(s,dt) {
     const lv=level(s,'solver');if(!lv)return;
     if(!s.attempt){if(s.path>0&&s.path<13){s.navClock+=dt;if(s.navClock>=Math.max(.4,2-lv*.2)){navigate(s,s.path+1);s.navClock=0;}}return;}
     const a=s.attempt;a.botClock+=dt;if(a.botClock<Math.max(.18,1.1-lv*.12))return;a.botClock=0;
+    if(a.labyrinth.stage>0){L.auto(s,labServices,lv);return;}
     if(!a.unlocked){unlock(s);return;}
     const checked=a.checks.findIndex(Boolean);if(checked>=0){setCheck(s,checked,false);return;}
     if(lv>=2&&!a.captcha){const next=a.targets.find(i=>!a.selected.includes(i));captcha(s,next);return;}
@@ -220,12 +226,16 @@
         if(choices[0])buy(s,choices[0].id);
       }
     }
-    autoForm(s,dt);
-    const a=s.attempt;if(!a)return;
+    const a=s.attempt;
+    if(!a){autoForm(s,dt);return;}
+    // Deadlines win a tie against automation, so an expired attempt cannot gain bonus time.
     a.age+=dt;a.remaining=Math.max(0,a.remaining-dt);
-    if(a.age>=a.recheckAt){a.recheckAt+=3;if(!s.research.latch&&level(s,'shield')<2){a.checks[1]=true;discover(s,'recheck');}}
-    if(a.age>=4&&!a.adSeen){a.adSeen=true;if(level(s,'shield')<3){a.popup=true;discover(s,'advert');}}
-    if(a.remaining<=0)settle(s,'時間切れで強制ログアウト');
+    if(a.remaining<=1e-8){settle(s,'第'+(a.labyrinth.stage+1)+'層「'+L.STAGES[a.labyrinth.stage].name+'」で時間切れ');return;}
+    if(a.labyrinth.stage===0){
+      if(a.age>=a.recheckAt){a.recheckAt+=3;if(!s.research.latch&&level(s,'shield')<2){a.checks[1]=true;discover(s,'recheck');}}
+      if(a.age>=4&&!a.adSeen){a.adSeen=true;if(level(s,'shield')<3){a.popup=true;discover(s,'advert');}}
+    } else L.tick(s,dt,labServices);
+    if(s.attempt)autoForm(s,dt);
   }
   function advance(s,seconds) {
     if(!Number.isFinite(seconds)||seconds<=0)return;
@@ -260,11 +270,17 @@
     const a=raw.attempt;
     if(a){
       if(!Number.isSafeInteger(a.deposit)||a.deposit<0||!Array.isArray(a.checks)||a.checks.length!==3||!Array.isArray(a.targets)||new Set(a.targets).size!==3||a.targets.some(i=>!Number.isInteger(i)||i<0||i>8))throw new Error('デポジットまたは認証情報が破損しています。');
-      s.attempt={id:int(a.id,1),deposit:int(a.deposit),remaining:Math.min(60,Math.max(0,Number(a.remaining)||0)),duration:int(a.duration,2,60),age:int(a.age,0,60),checks:a.checks.map(Boolean),unlocked:a.unlocked===true,targets:[...a.targets],selected:Array.isArray(a.selected)?[...new Set(a.selected.filter(i=>a.targets.includes(i)))]:[],captcha:a.captcha===true,terms:a.terms===true,popup:a.popup===true,adSeen:a.adSeen===true,evades:int(a.evades,0,5),position:int(a.position,0,2),recheckAt:int(a.recheckAt,3,90),botClock:0,progress:int(a.progress,0,12)};
+      s.attempt={id:int(a.id,1),deposit:int(a.deposit),remaining:Math.min(300,Math.max(0,Number(a.remaining)||0)),duration:Math.min(300,Math.max(2,Number(a.duration)||2)),age:Math.min(7200,Math.max(0,Number(a.age)||0)),checks:a.checks.map(Boolean),unlocked:a.unlocked===true,targets:[...a.targets],selected:Array.isArray(a.selected)?[...new Set(a.selected.filter(i=>a.targets.includes(i)))]:[],captcha:a.captcha===true,terms:a.terms===true,popup:a.popup===true,adSeen:a.adSeen===true,evades:int(a.evades,0,5),position:int(a.position,0,2),recheckAt:int(a.recheckAt,3,90),botClock:0,progress:int(a.progress,0,12)};
+      s.attempt.labyrinth=L.hydrate(a.labyrinth,s,labServices);
     }
-    s.lastResult=raw.lastResult&&typeof raw.lastResult.reason==='string'?{id:int(raw.lastResult.id),reason:raw.lastResult.reason.slice(0,160),deposit:int(raw.lastResult.deposit),refund:int(raw.lastResult.refund),loss:int(raw.lastResult.loss),data:int(raw.lastResult.data),breakthrough:raw.lastResult.breakthrough===true,cycle:int(raw.lastResult.cycle)}:null;
+    s.lastResult=raw.lastResult&&typeof raw.lastResult.reason==='string'?{id:int(raw.lastResult.id),reason:raw.lastResult.reason.slice(0,160),deposit:int(raw.lastResult.deposit),refund:int(raw.lastResult.refund),loss:int(raw.lastResult.loss),data:int(raw.lastResult.data),breakthrough:raw.lastResult.breakthrough===true,cycle:int(raw.lastResult.cycle),stage:int(raw.lastResult.stage,0,7),highest:int(raw.lastResult.highest,0,7),faults:int(raw.lastResult.faults,0,100000)}:null;
     if(!s.attempt&&s.path===14)s.path=13;
     return s;
   }
-  return {VERSION,ROUTES,CATALOG,BOTS,RESEARCH,TRAPS,createState,hydrate,advance,level,product,quote,capacity,deposit,botCost,botInterval,shelfCost,refundRate,buy,list,listAll,upgradeBot,upgradeShelf,research,navigate,startAttempt,settle,unlock,setCheck,captcha,acceptTerms,evade,dismissAd,submit,fly,work};
+  function frontActive(s){return !!s.attempt&&s.attempt.remaining>0&&s.attempt.labyrinth.stage===0;}
+  const labServices={rand,level,discover,record,finish:s=>settle(s,'8層の受付ロックを突破。退会予約を受理',true),fail:(s,why)=>settle(s,why)};
+  const labyrinthAction=(s,op,value,stage)=>L.action(s,op,value,labServices,stage);
+  const labyrinthWindow=s=>L.windowOpen(s,labServices);
+  const cancelHold=s=>L.cancelHumanHold(s);
+  return {LABYRINTH:L,labyrinthAction,labyrinthWindow,cancelHold,VERSION,ROUTES,CATALOG,BOTS,RESEARCH,TRAPS,createState,hydrate,advance,level,product,quote,capacity,deposit,botCost,botInterval,shelfCost,refundRate,buy,list,listAll,upgradeBot,upgradeShelf,research,navigate,startAttempt,settle,unlock,setCheck,captcha,acceptTerms,evade,dismissAd,submit,fly,work};
 });

@@ -189,19 +189,20 @@ async def run(args):
                 break
             await page.locator('#real-submit').focus()
             await page.keyboard.press('Enter')
-        assert (await snapshot(page))['stats']['breakthroughs'] == 1
-        await shot(page, '11-regulation-revision')
-        passed('Evasive submit works with keyboard; full form starts the next regulation cycle')
+        assert (await snapshot(page))['attempt']['labyrinth']['stage'] == 1
+        assert (await snapshot(page))['stats']['breakthroughs'] == 0
+        await shot(page, '11-inner-locks-revealed')
+        passed('Evasive submit works with keyboard; front form reveals the next layer rather than completing withdrawal')
         await page.close()
 
-        automated = fixture("s.coins=30000;s.discovered=13;s.path=13;s.bots.clock.level=5;s.bots.solver.level=4;s.bots.shield.level=3")
+        automated = fixture("s.coins=30000;s.discovered=13;s.path=13;s.bots.clock.level=5;s.bots.solver.level=12;s.bots.shield.level=9")
         page = await new_page(automated)
         await tab(page, 'withdraw')
         await click(page, 'deposit')
         await click(page, 'enter')
-        await page.clock.fast_forward(14000)
+        await page.clock.fast_forward(35000)
         assert (await snapshot(page))['stats']['breakthroughs'] == 1
-        passed('Form Bot, Clock Bot and Audit Bot complete the form together')
+        passed('Form Bot, Clock Bot and Audit Bot complete all eight layers together')
         await page.close()
 
         for width,height in [(390,844),(768,1024),(1920,1080)]:
